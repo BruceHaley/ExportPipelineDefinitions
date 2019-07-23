@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace ExportPipelineDefinitions
 {
     /// <summary>
-    /// Exports all build and release definitions in the organization to .json files.
+    /// Exports all Azure DevOps build and release definitions in the organization to .json files.
     /// </summary>
     /// <remarks>
     /// Unfortunately the build definition output is not importable via the Azure DevOps UI to create a new definition.
