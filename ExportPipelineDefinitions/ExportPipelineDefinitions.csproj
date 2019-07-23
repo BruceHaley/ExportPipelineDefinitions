@@ -6,8 +6,8 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{AB417819-7751-4B6B-95C5-0A127625DC6E}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>ExportBuildDefinitions</RootNamespace>
-    <AssemblyName>ExportBuildDefinitions</AssemblyName>
+    <RootNamespace>ExportPipelineDefinitions</RootNamespace>
+    <AssemblyName>ExportPipelineDefinitions</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
