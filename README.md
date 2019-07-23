@@ -1,7 +1,7 @@
 # ExportPipelineDefinitions
 This app exports all Azure DevOps pipeline definitions to .json files in a single command. It iterates through all projects to which you have access in your organization. 
 
-Note: Though the exported files are complete, the format is such that Azure DevOps UI will not import them to create new definitions.
+Note: Though the exported files are complete, the format is such that the Azure DevOps UI will not import them to create new definitions.
 
 ## Quickstart
 1. Clone this repository.
