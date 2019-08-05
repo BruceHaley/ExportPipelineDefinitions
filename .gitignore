@@ -267,5 +267,6 @@ __pycache__/
 **/LUISGenTestJS/**/*.js
 
 # Settings 
-**/Settings.*
+**/Settings.Designer.cs
+**/Settings.settings
 **/App.config
