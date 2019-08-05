@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json.Linq;
 //using Json;
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -55,6 +56,13 @@ namespace ExportPipelineDefinitions
             //GetBuilds();
             GetProjects().Wait();
             Console.WriteLine("Writing .json files to: " + outputPath + "\n");
+
+            if (Directory.Exists(outputPath))
+            {
+                Console.WriteLine("But first, deleting the existing contents of that folder. Press any key to continue (Ctrl+C to abort).");
+                Console.ReadKey();
+                Directory.Delete(outputPath, true);
+            }
 
             foreach (Proj proj in projectList)
             {
