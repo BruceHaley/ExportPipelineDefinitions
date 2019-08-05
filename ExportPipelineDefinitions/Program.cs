@@ -15,9 +15,10 @@ namespace ExportPipelineDefinitions
     /// Exports all Azure DevOps build and release definitions in the organization to .json files.
     /// </summary>
     /// <remarks>
-    /// Unfortunately the build definition output is not importable via the Azure DevOps UI to create a new definition.
-    /// Comparing release definitions, however, they are nearly identical to the ones exported by the UI. Only difference being 
-    /// some enumerables are represented by integers instead of names. Have not tried importing those.
+    /// The exported files are useful for conducting searches of your build definitions.
+    /// Unfortunately the exported build definition files are not importable via the Azure DevOps UI to create new definitions.
+    /// The release definition files, however, are nearly identical to the ones exported by the UI. Only difference being 
+    /// some enumerables are represented by integers instead of names. Importing those may be possible.
     /// </remarks>
     class Program
     {
