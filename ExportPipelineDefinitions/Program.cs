@@ -78,7 +78,7 @@ namespace ExportPipelineDefinitions
                     WriteDefinitionToFile(proj.name, "release", buildDef).Wait();
                 }
             }
-            Console.WriteLine("Press any key");
+            Console.WriteLine("Done. Press any key");
             Console.ReadKey();
         }
 
