@@ -55,14 +55,13 @@ namespace ExportPipelineDefinitions
         {
             //GetBuilds();
             GetProjects().Wait();
-            Console.WriteLine("Writing .json files to: " + outputPath + "\n");
-
             if (Directory.Exists(outputPath))
             {
-                Console.WriteLine("But first, deleting the existing contents of that folder. Press any key to continue (Ctrl+C to abort).");
+                Console.WriteLine("\nDeleting the output folder " + outputPath + ". \nPress any key to continue (Ctrl+C to abort)");
                 Console.ReadKey();
                 Directory.Delete(outputPath, true);
             }
+            Console.WriteLine("Writing .json files to: " + outputPath + "\n");
 
             foreach (Proj proj in projectList)
             {
