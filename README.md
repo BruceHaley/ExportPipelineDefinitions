@@ -12,5 +12,5 @@ The exported files are complete. However, their format is such that the Azure De
 1. Clone this repository.
 1. Open the solution in Visual Studio.
 1. In Solution Explorer open Properties/Settings.settings and fill in the three values: personal access token, organization, and output path.
-   For hints, read the comments from line 25 in Program.cs.
+   For details, read the comments from line 25 in Program.cs.
 1. Hit F5 to run.
