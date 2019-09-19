@@ -2,14 +2,14 @@
 <SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="ExportPipelineDefinitions.Properties" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
+    <Setting Name="outputPath" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">C:\Temp\PipelineDefinitions\</Value>
+    </Setting>
     <Setting Name="personalAccessToken" Type="System.String" Scope="Application">
-      <Value Profile="(Default)">my_personal_access_token</Value>
+      <Value Profile="(Default)"> </Value>
     </Setting>
     <Setting Name="organization" Type="System.String" Scope="Application">
-      <Value Profile="(Default)">my_azure_organization</Value>
-    </Setting>
-    <Setting Name="outputPath" Type="System.String" Scope="Application">
-      <Value Profile="(Default)">C:\temp\MyPipelineDefinitions\</Value>
+      <Value Profile="(Default)"> </Value>
     </Setting>
   </Settings>
 </SettingsFile>

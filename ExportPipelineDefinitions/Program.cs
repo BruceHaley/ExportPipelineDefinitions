@@ -22,14 +22,10 @@ namespace ExportPipelineDefinitions
     /// </remarks>
     class Program
     {
-        // Set up the following three vars in file Settings.settings to use this program.
-        //
-        // personalAccessToken description: https://docs.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/pats?view=azure-devops
-        static string personalAccessToken = Properties.Settings.Default.personalAccessToken;
-        // organization is the value in your Azure DevOps URL: https://dev.azure.com/{yourorganization}
-        static string organization = Properties.Settings.Default.organization;
-        // outputPath defines where the .json files will be written. Requires a trailing backslash. Example: @"C:\temp\BuildDefinitions\"
-        static string outputPath = Properties.Settings.Default.outputPath;
+        // 3 vars populated from Settings.settings
+        static string personalAccessToken;
+        static string organization;
+        static string outputPath;
 
         const string buildDomain = "dev.azure.com";
         const string releaseDomain = "vsrm.dev.azure.com";
@@ -54,40 +50,84 @@ namespace ExportPipelineDefinitions
 
         static void Main(string[] args)
         {
-            //GetBuilds();
-            GetProjects().Wait();
-            if (Directory.Exists(outputPath))
+            try
             {
-                Console.WriteLine("\nDeleting the output folder " + outputPath + ". \nPress any key to continue (Ctrl+C to abort)");
-                Console.ReadKey();
-                Directory.Delete(outputPath, true);
-            }
-            Console.WriteLine("Writing .json files to: " + outputPath + "\n");
-
-            foreach (Proj proj in projectList)
-            {
-                Console.WriteLine(proj.name + "------------");
-
-                definitionList.Clear();
-                domain = buildDomain;
-                GetBuildDefinitions(proj.name).Wait();
-                if (definitionList.Count > 0) { Console.WriteLine("  builds");  }
-                foreach (BuildDef buildDef in definitionList)
+                GetSettings();
+                GetProjects().Wait();
+                if (Directory.Exists(outputPath))
                 {
-                    WriteDefinitionToFile(proj.name, "build", buildDef).Wait();
+                    Console.WriteLine("\nDeleting the output folder " + outputPath + ". \nPress any key to continue (Ctrl+C to abort)");
+                    Console.ReadKey();
+                    Directory.Delete(outputPath, true);
                 }
+                Console.WriteLine("Writing .json files to: " + outputPath + "\n");
 
-                definitionList.Clear();
-                domain = releaseDomain;
-                GetReleaseDefinitions(proj.name).Wait();
-                if (definitionList.Count > 0) { Console.WriteLine("  releases"); }
-                foreach (BuildDef buildDef in definitionList)
+                foreach (Proj proj in projectList)
                 {
-                    WriteDefinitionToFile(proj.name, "release", buildDef).Wait();
+                    Console.WriteLine(proj.name + "------------");
+
+                    definitionList.Clear();
+                    domain = buildDomain;
+                    GetBuildDefinitions(proj.name).Wait();
+                    if (definitionList.Count > 0) { Console.WriteLine("  builds"); }
+                    foreach (BuildDef buildDef in definitionList)
+                    {
+                        WriteDefinitionToFile(proj.name, "build", buildDef).Wait();
+                    }
+
+                    definitionList.Clear();
+                    domain = releaseDomain;
+                    GetReleaseDefinitions(proj.name).Wait();
+                    if (definitionList.Count > 0) { Console.WriteLine("  releases"); }
+                    foreach (BuildDef buildDef in definitionList)
+                    {
+                        WriteDefinitionToFile(proj.name, "release", buildDef).Wait();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine(ex.InnerException.Message.ToString());
+                }
+                else
+                {
+                    Console.WriteLine(ex.Message.ToString());
                 }
             }
             Console.WriteLine("Done. Press any key");
             Console.ReadKey();
+        }
+
+        public static void GetSettings()
+        {
+            // Set up the following three vars in file Properties\Settings.settings to use this program.
+            //
+            // personalAccessToken description: https://docs.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/pats?view=azure-devops
+            // organization is the value in your Azure DevOps URL: https://dev.azure.com/{yourorganization}
+            // outputPath defines where the .json files will be written. Requires a trailing backslash. Example: @"C:\temp\BuildDefinitions\"
+
+            personalAccessToken = Properties.Settings.Default.personalAccessToken;
+            Validate(nameof(personalAccessToken), personalAccessToken);
+
+            organization = Properties.Settings.Default.organization;
+            Validate(nameof(organization), organization);
+
+            outputPath = Properties.Settings.Default.outputPath;
+            Validate(nameof(outputPath), outputPath);
+        }
+
+        public static void Validate(string nameOfVar, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new InvalidDataException(
+                    string.Format(
+                        "Invalid {0} value in file {1}.config.",
+                        nameOfVar,
+                        System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName));
+            }
         }
 
         public static async Task GetProjects()
@@ -95,39 +135,39 @@ namespace ExportPipelineDefinitions
             // Documentation: https://docs.microsoft.com/en-us/rest/api/azure/devops/?view=azure-devops-server-rest-5.0
             //    https://docs.microsoft.com/en-us/rest/api/azure/devops/core/projects/list?view=azure-devops-rest-5.1
 
-            try
+            string restUrl = String.Format("https://{0}/{1}/_apis/projects", domain, organization);
+            Console.WriteLine("Getting build definitions from " + restUrl);
+
+            using (HttpClient client = new HttpClient())
             {
-                string restUrl = String.Format("https://{0}/{1}/_apis/projects", domain, organization);
-                Console.WriteLine("Getting build definitions from " + restUrl);
+                client.DefaultRequestHeaders.Accept.Add(
+                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
-                using (HttpClient client = new HttpClient())
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                    Convert.ToBase64String(
+                        System.Text.ASCIIEncoding.ASCII.GetBytes(
+                            string.Format("{0}:{1}", "", personalAccessToken))));
+
+                using (HttpResponseMessage response = await client.GetAsync(restUrl))
                 {
-                    client.DefaultRequestHeaders.Accept.Add(
-                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-
-                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
-                        Convert.ToBase64String(
-                            System.Text.ASCIIEncoding.ASCII.GetBytes(
-                                string.Format("{0}:{1}", "", personalAccessToken))));
-
-                    using (HttpResponseMessage response = await client.GetAsync(restUrl))
+                    response.EnsureSuccessStatusCode();
+                    string responseBody = await response.Content.ReadAsStringAsync();
+                    if (responseBody.Contains("!DOCTYPE"))
                     {
-                        response.EnsureSuccessStatusCode();
-                        string responseBody = await response.Content.ReadAsStringAsync();
-                        JObject json = JObject.Parse(responseBody);
-                        foreach (JObject o in json.Last.First)
-                        {
-                            Proj proj = new Proj();
-                            proj.id = o["id"].ToString();
-                            proj.name = o["name"].ToString();
-                            projectList.Add(proj);
-                        }
+                        throw new AccessViolationException(
+                            string.Format(
+                                "Cannot access Azure. Please ensure personalAccessToken and organization values are correct in file {0}.config.",
+                                System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName));
+                    }
+                    JObject json = JObject.Parse(responseBody);
+                    foreach (JObject o in json.Last.First)
+                    {
+                        Proj proj = new Proj();
+                        proj.id = o["id"].ToString();
+                        proj.name = o["name"].ToString();
+                        projectList.Add(proj);
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.ToString());
             }
         }
 
@@ -251,7 +291,8 @@ namespace ExportPipelineDefinitions
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.ToString());
+                Console.WriteLine("Write to file: " + ex.GetType());
+                throw;
             }
         }
 
