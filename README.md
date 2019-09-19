@@ -6,7 +6,7 @@ This command line app exports all Azure DevOps pipeline definitions to .json fil
 - Lets you collect snapshots of your pipeline history. 
 
 **Note:** 
-The exported files are complete. However, their format is such that the Azure DevOps UI will not import them to create new definitions.
+The exported files are complete. However, the format does not support importing them through the Azure DevOps UI to create new definitions.
 
 ## Quickstart
 1. Clone this repository.
