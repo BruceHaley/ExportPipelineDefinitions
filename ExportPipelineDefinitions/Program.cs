@@ -22,7 +22,12 @@ namespace ExportPipelineDefinitions
     /// </remarks>
     class Program
     {
-        // 3 vars populated from Settings.settings
+        // Before running this program, set up the following three vars in file Properties\Settings.settings.
+        //
+        // personalAccessToken description: https://docs.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/pats?view=azure-devops
+        // organization is the value in your Azure DevOps URL: https://dev.azure.com/{yourorganization}
+        // outputPath defines where the .json files will be written. Requires a trailing backslash. Example: @"C:\temp\PipelineDefinitions\"
+
         static string personalAccessToken;
         static string organization;
         static string outputPath;
@@ -102,12 +107,6 @@ namespace ExportPipelineDefinitions
 
         public static void GetSettings()
         {
-            // Set up the following three vars in file Properties\Settings.settings to use this program.
-            //
-            // personalAccessToken description: https://docs.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/pats?view=azure-devops
-            // organization is the value in your Azure DevOps URL: https://dev.azure.com/{yourorganization}
-            // outputPath defines where the .json files will be written. Requires a trailing backslash. Example: @"C:\temp\BuildDefinitions\"
-
             personalAccessToken = Properties.Settings.Default.personalAccessToken;
             Validate(nameof(personalAccessToken), personalAccessToken);
 

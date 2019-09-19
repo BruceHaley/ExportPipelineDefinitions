@@ -3,7 +3,7 @@
   <Profiles />
   <Settings>
     <Setting Name="outputPath" Type="System.String" Scope="Application">
-      <Value Profile="(Default)">C:\Temp\PipelineDefinitions\</Value>
+      <Value Profile="(Default)">C:\temp\PipelineDefinitions\</Value>
     </Setting>
     <Setting Name="personalAccessToken" Type="System.String" Scope="Application">
       <Value Profile="(Default)"> </Value>

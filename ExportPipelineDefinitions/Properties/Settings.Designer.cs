@@ -25,7 +25,7 @@ namespace ExportPipelineDefinitions.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("C:\\Temp\\PipelineDefinitions\\")]
+        [global::System.Configuration.DefaultSettingValueAttribute("C:\\temp\\PipelineDefinitions\\")]
         public string outputPath {
             get {
                 return ((string)(this["outputPath"]));
