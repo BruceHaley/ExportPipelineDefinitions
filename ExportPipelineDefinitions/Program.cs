@@ -3,11 +3,13 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using System.Net;
 
 namespace ExportPipelineDefinitions
 {
@@ -35,6 +37,8 @@ namespace ExportPipelineDefinitions
         const string buildDomain = "dev.azure.com";
         const string releaseDomain = "vsrm.dev.azure.com";
         static string domain = buildDomain;
+        static bool isYamlPipeline = false;
+        static List<string> yamlFileNames = new List<string>();
 
         public class BuildDef
         {
@@ -58,23 +62,29 @@ namespace ExportPipelineDefinitions
             try
             {
                 GetSettings();
-                GetProjects().Wait();
+                PopulateProjectList().Wait();
                 if (Directory.Exists(outputPath))
                 {
                     Console.WriteLine("\nDeleting the output folder " + outputPath + ". \nPress any key to continue (Ctrl+C to abort)");
                     Console.ReadKey();
                     Directory.Delete(outputPath, true);
                 }
-                Console.WriteLine("Writing .json files to: " + outputPath + "\n");
+                Console.WriteLine("Writing definition files to: " + outputPath);
+                BuildCsvString(1, "Project,Type,Definition Name,Yaml Call,Yaml Subcall");
 
                 foreach (Proj proj in projectList)
                 {
-                    Console.WriteLine(proj.name + "------------");
+                    Console.WriteLine("\n### " + proj.name);
+                    BuildCsvString(1, proj.name);
 
                     definitionList.Clear();
                     domain = buildDomain;
-                    GetBuildDefinitions(proj.name).Wait();
-                    if (definitionList.Count > 0) { Console.WriteLine("  builds"); }
+                    PopulateBuildDefinitionList(proj.name).Wait();
+                    if (definitionList.Count > 0) 
+                    { 
+                        Console.WriteLine("  * builds");
+                        BuildCsvString(2, "builds");
+                    }
                     foreach (BuildDef buildDef in definitionList)
                     {
                         WriteDefinitionToFile(proj.name, "build", buildDef).Wait();
@@ -83,12 +93,17 @@ namespace ExportPipelineDefinitions
                     definitionList.Clear();
                     domain = releaseDomain;
                     GetReleaseDefinitions(proj.name).Wait();
-                    if (definitionList.Count > 0) { Console.WriteLine("  releases"); }
+                    if (definitionList.Count > 0) 
+                    { 
+                        Console.WriteLine("  * releases");
+                        BuildCsvString(2, "releases");
+                    }
                     foreach (BuildDef buildDef in definitionList)
                     {
                         WriteDefinitionToFile(proj.name, "release", buildDef).Wait();
                     }
                 }
+                Console.WriteLine("Finished writing definition files to: " + outputPath + "\n");
             }
             catch (Exception ex)
             {
@@ -101,6 +116,11 @@ namespace ExportPipelineDefinitions
                     Console.WriteLine(ex.Message.ToString());
                 }
             }
+
+            // Write .csv file containing all build definitions.
+            BuildCsvString(1, "Flush buffer"); 
+            File.WriteAllText(outputPath + @"\BuildDefinitions.csv", csvString);
+
             Console.WriteLine("Done. Press any key");
             Console.ReadKey();
         }
@@ -129,7 +149,7 @@ namespace ExportPipelineDefinitions
             }
         }
 
-        public static async Task GetProjects()
+        public static async Task PopulateProjectList()
         {
             // Documentation: https://docs.microsoft.com/en-us/rest/api/azure/devops/?view=azure-devops-server-rest-5.0
             //    https://docs.microsoft.com/en-us/rest/api/azure/devops/core/projects/list?view=azure-devops-rest-5.1
@@ -168,15 +188,17 @@ namespace ExportPipelineDefinitions
                     }
                 }
             }
+            projectList.Sort(CompareProjs);
         }
 
-        public static async Task GetBuildDefinitions(string project = "SDK_v4")
+        public static async Task PopulateBuildDefinitionList(string project = "SDK_v4")
         {
             // Documentation: https://docs.microsoft.com/en-us/rest/api/azure/devops/build/definitions/list?view=azure-devops-rest-5.0
 
             try
             {
-                string restUrl = String.Format("https://{0}/{1}/{2}/_apis/build/definitions?api-version=5.0", buildDomain, organization, project);
+                //string restUrl = String.Format("https://{0}/{1}/{2}/_apis/build/definitions?api-version=5.0", buildDomain, organization, project);
+                string restUrl = String.Format("https://{0}/{1}/{2}/_apis/build/definitions?includeAllProperties=true&api-version=5.0", buildDomain, organization, project);
 
                 using (HttpClient client = new HttpClient())
                 {
@@ -209,6 +231,7 @@ namespace ExportPipelineDefinitions
             {
                 Console.WriteLine(ex.ToString());
             }
+            definitionList.Sort(CompareBuildDefs);
         }
 
         public static async Task GetReleaseDefinitions(string project = "SDK_v4")
@@ -250,6 +273,7 @@ namespace ExportPipelineDefinitions
             {
                 Console.WriteLine(ex.ToString());
             }
+            definitionList.Sort(CompareBuildDefs);
         }
 
         public static async Task WriteDefinitionToFile(string project, string definitionType, BuildDef buildDef)
@@ -263,7 +287,9 @@ namespace ExportPipelineDefinitions
 
                 using (HttpClient client = new HttpClient())
                 {
-                    Console.WriteLine("    " + (buildDef.path + "\\" + buildDef.name).Replace("\\\\","\\").TrimStart('\\'));
+                    string definitionName = (buildDef.path + "\\" + buildDef.name).Replace("\\\\", "\\").TrimStart('\\');
+                    Console.WriteLine("    * " + definitionName);
+                    BuildCsvString(3, definitionName);
 
                     client.DefaultRequestHeaders.Accept.Add(
                         new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
@@ -278,22 +304,289 @@ namespace ExportPipelineDefinitions
                         response.EnsureSuccessStatusCode();
                         string responseBody = await response.Content.ReadAsStringAsync();
                         JObject json = JObject.Parse(responseBody);
+
+                        isYamlPipeline = CheckForYamlPipeline(json);
+
                         // Write json to a file
                         string fileContent = json.ToString();
 
                         string directory = outputPath + project + "\\" + definitionType + "s\\" + buildDef.path;
                         System.IO.Directory.CreateDirectory(directory);
+                        string buildName = buildDef.name.Replace("?", "").Replace(":", "");
+                        if (isYamlPipeline)
+                        {
+                            directory += "\\" + buildName;
+                            System.IO.Directory.CreateDirectory(directory);
+                        }
+                        directory = directory.Replace("\\\\", "\\").Replace("\\\\", "\\");
+
                         string fullFilePath = directory + "\\" + buildDef.name.Replace("?", "").Replace(":", "") + ".json";
                         System.IO.File.WriteAllText(fullFilePath, fileContent);
+                        if (isYamlPipeline)
+                        {
+                            string saveDirectory = Directory.GetCurrentDirectory();
+                            //Directory.SetCurrentDirectory(directory);
+                            DownloadYamlFilesToDirectory(json, directory);
+                            //Directory.SetCurrentDirectory(saveDirectory);
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Write to file: " + ex.GetType());
-                throw;
+                //throw;
             }
         }
 
+        public static bool CheckForYamlPipeline(JObject json)
+        {
+            yamlFileNames.Clear();
+
+            if (json != null && json["process"] != null && json["process"]["yamlFilename"] != null)
+            {
+                yamlFileNames.Add(json["process"]["yamlFilename"].ToString());
+                return true;
+            }
+
+            return false;
+        }
+
+        public static void DownloadYamlFilesToDirectory(JObject json, string directory)
+        {
+            // Download the .yml files from the GitHub repo.
+            // Get GitHub repo URL for this Azure project.
+            if (json != null && json["repository"] != null && json["repository"]["properties"] != null)
+            {
+                string gitRepoUrl = null;
+                if (json["repository"]["properties"]["manageUrl"] != null)
+                {
+                    // This is for the github.com repo. It works.
+                    gitRepoUrl = json["repository"]["properties"]["manageUrl"].ToString();
+                }
+                else if (json["repository"]["properties"]["cloneUrl"] != null)
+                {
+                    // This is for the visualstudio.com git repo. It does not work.
+                    // TODO: Make the necessary API call to get this yaml file. 
+                    gitRepoUrl = json["repository"]["properties"]["cloneUrl"].ToString();
+                }
+                else if (json["repository"]["url"] != null)
+                {
+                    // This gets dev.azure.com. It does not work.
+                    // TODO: Make the necessary API call to get this yaml file. 
+                    gitRepoUrl = json["repository"]["url"].ToString();
+                }
+
+                if (!string.IsNullOrWhiteSpace(gitRepoUrl))
+                {
+                    string defaultBranch = string.Empty;
+
+                    if (json["repository"] != null && json["repository"]["defaultBranch"] != null)
+                    {
+                        defaultBranch = json["repository"]["defaultBranch"].ToString();
+                    }
+                    gitRepoUrl += string.IsNullOrWhiteSpace(defaultBranch) ? "" : $"/raw/{defaultBranch}";
+
+                    if (!string.IsNullOrEmpty(gitRepoUrl))
+                    {
+                        //  https://docs.microsoft.com/en-us/rest/api/azure/devops/build/definitions/get?view=azure-devops-rest-5.1#buildrepository
+                        //  BuildRepository Represents a repository used by a build definition.
+                        // Begin loop.
+                        // Get next .yml file name from yamlFileNames list.
+                        // Set yamlFilesRootUrl and githubFileUrl for the first yaml file (The one named in the .json build definition.)
+                        string yamlFilesRootUrl = gitRepoUrl;
+                        string githubFileUrl = string.Empty;
+                        string logIndent = string.Empty;
+
+                        if (yamlFileNames.Count > 0)
+                        {
+                            string firstFile = yamlFileNames.FirstOrDefault();
+                            yamlFilesRootUrl += firstFile.Contains('/') ? "/" + firstFile.Substring(0, firstFile.LastIndexOf('/')) : "";
+                            githubFileUrl = gitRepoUrl + "/" + firstFile;
+                            logIndent = "      "; // 6 spaces
+                        }
+                        
+                        while (yamlFileNames.Count > 0)
+                        {
+                            string filePath = yamlFileNames.FirstOrDefault();
+
+                            if (string.IsNullOrWhiteSpace(githubFileUrl))
+                            {
+                                githubFileUrl = yamlFilesRootUrl + "/" + filePath;
+                                logIndent = "        "; // 8 spaces
+                            }
+                            string fileName = githubFileUrl.Substring(githubFileUrl.LastIndexOf('/') + 1);
+                            string targetFullFilePath = $"{directory}\\{fileName}";
+                            bool succeeded = DownloadFileFromGithub(githubFileUrl, targetFullFilePath, logIndent);
+                            yamlFileNames.RemoveAt(0);
+                            if (succeeded)
+                            {
+                                int count = yamlFileNames.Count;
+                                yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
+                            }
+                            githubFileUrl = string.Empty;
+                        }
+                        // Read .yml file from repo.
+                        // Look for template references to other .yml files. Add any found to yamlFileNames list.
+                        // Write .yml file to directory.
+                        // Loop.
+                    }
+                    else
+                    {
+                        Console.WriteLine("Could not get gitRepoUrl value for .yml file.");
+                    }
+                }
+            }
+
+            //Directory.SetCurrentDirectory(savedDirectory);
+        }
+
+        private static bool DownloadFileFromGithub(string githubFileUrl, string fullFilePath, string logIndent)
+        {
+            // https://gist.github.com/EvanSnapp/ddf7f7f793474ea9631cbc0960295983
+            // https://github.com/zayenCh/DownloadFile/blob/master/Downloader.cs
+
+            int column = (logIndent.Length / 2) + 1;
+
+            WebClient webClient = new WebClient();
+            webClient.Headers.Add("user-agent", "Anything");
+            try
+            {
+                //webClient.DownloadFile(new Uri(githubFileUrl), fullFilePath.TrimEnd('\\'));
+                string contents = webClient.DownloadString(new Uri(githubFileUrl));
+                File.WriteAllText(fullFilePath, contents);
+                string fileName = fullFilePath.Substring(fullFilePath.LastIndexOf("\\") + 1);
+                Console.WriteLine($"{logIndent}* {fileName}");
+                BuildCsvString(column, fileName);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                string fileName = fullFilePath.Substring(fullFilePath.LastIndexOf("\\") + 1);
+                Console.WriteLine($"{logIndent}* {fileName}*");
+                BuildCsvString(column, fileName + "*");
+                string contents = $"* {ex.Message.ToString()}\r\n{githubFileUrl}";
+                File.WriteAllText(fullFilePath, contents);
+                if (ex.Message.ToString().Contains("(404)"))
+                {
+                    //Console.WriteLine($"Not Found (404): {githubFileUrl}");
+                }
+                else
+                {
+                    Console.WriteLine($"* {ex.Message.ToString()} {githubFileUrl}");
+                }
+            }
+            return false;
+        }
+
+        private static List<string> GetYamlTemplateReferencesFromFile(string targetFullFilePath)
+        {
+            List<string> references = new List<string>();
+            string match = "- template:";
+
+            var lines = File.ReadLines(targetFullFilePath);
+            foreach (string line in lines)
+            {
+                if (line.Contains(match))
+                {
+                    string name = line.Replace(match, "").Trim();
+                    if (!references.Contains(name))
+                    {
+                        references.Add(name);
+                    }
+                }
+            }
+
+            return references;
+        }
+
+        private static int CompareProjs(Proj x, Proj y)
+        {
+            if (x == null)
+            {
+                if (y == null)
+                {
+                    return 0;
+                }
+                else
+                {
+                    return -1;
+                }
+            }
+            else
+            {
+                if (y == null)
+                {
+                    return 1;
+                }
+                else
+                {
+                    return x.name.ToLowerInvariant().CompareTo(y.name.ToLowerInvariant());
+                }
+            }
+        }
+
+        private static int CompareBuildDefs(BuildDef x, BuildDef y)
+        {
+            if (x == null)
+            {
+                if (y == null)
+                {
+                    return 0;
+                }
+                else
+                {
+                    return -1;
+                }
+            }
+            else
+            {
+                if (y == null)
+                {
+                    return 1;
+                }
+                else
+                {
+                    return (x.path + @"\" + x.name).ToLowerInvariant().CompareTo((y.path + @"\" + y.name).ToLowerInvariant());
+                }
+            }
+        }
+
+        static string csvString = string.Empty;
+        static List<string> csvColumns = new List<string>();
+        static int lastColumnNumber = -1;
+
+        static void BuildCsvString(int columnNumber, string columnValue)
+        {
+            // Append to csvString.
+            if (columnNumber <= lastColumnNumber)
+            {
+                string newRow = string.Empty;
+
+                foreach (string column in csvColumns)
+                {
+                    newRow += "=\"" + column + "\",";
+                }
+
+                csvString += newRow.Trim(',') + "\r\n";
+            }
+
+            // Add column only if columnValue has a value.
+            if (!string.IsNullOrWhiteSpace(columnValue))
+            {
+                while (csvColumns.Count >= columnNumber)
+                {
+                    csvColumns.RemoveAt(csvColumns.Count - 1);
+                }
+
+                foreach (string column in columnValue.Split(','))
+                {
+                    csvColumns.Add(column);
+                }
+            }
+
+            lastColumnNumber = columnNumber;
+        }
     }
 }
