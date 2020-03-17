@@ -6,10 +6,10 @@ This command line app exports all Azure DevOps pipeline definitions to .json and
 - Lets you save snapshots of your pipeline history. 
 
 **Note:** 
-The exported .json files format does not support importing them through the Azure DevOps UI to create new definitions.
+The exported .json files format is not importable through the Azure DevOps UI to create new definitions.
 
 ## Quickstart
-1. Go to releases and click-to-download the 3 files, .exe, .config, and .dll. Put them together in a folder. 
-1. Edit file ExportPipelineDefinitions.exe.config and set the three values: personalAccessToken, organization, and outputPath.
-   For details, read "Before running this program..." starting on line 28 in ExportPipelineDefinitions\Program.cs.
+1. Go to releases and click-to-download the .exe, .config, and .dll files. Put them together in a folder. 
+1. Edit the .config file and set the three values: personalAccessToken, organization, and outputPath.
+   For detailed instructions, read starting on line 28 in [ExportPipelineDefinitions/Program.cs](ExportPipelineDefinitions/Program.cs).
 1. Run the .exe.
