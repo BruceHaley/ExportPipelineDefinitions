@@ -11,5 +11,5 @@ The exported .json files format is not importable through the Azure DevOps UI to
 ## Quickstart
 1. Go to releases and click-to-download the .exe, .config, and .dll files. Put them together in a folder. 
 1. Edit the .config file and set the three values: personalAccessToken, organization, and outputPath.
-   For detailed instructions, read starting on line 28 in [ExportPipelineDefinitions/Program.cs](ExportPipelineDefinitions/Program.cs).
+   For detailed instructions, read starting on line 30 in [ExportPipelineDefinitions/Program.cs](ExportPipelineDefinitions/Program.cs).
 1. Run the .exe.
