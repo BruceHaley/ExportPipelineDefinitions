@@ -14,13 +14,14 @@ using System.Net;
 namespace ExportPipelineDefinitions
 {
     /// <summary>
-    /// Exports all Azure DevOps build and release definitions in the organization to .json files.
+    /// Exports all Azure DevOps build and release pipeline definitions in your organization to disk.
     /// </summary>
     /// <remarks>
-    /// The exported files are useful for conducting searches of your build definitions.
-    /// Unfortunately the exported build definition files are not importable via the Azure DevOps UI to create new definitions.
-    /// The release definition files, however, are nearly identical to the ones exported by the UI. Only difference being 
-    /// some enumerables are represented by integers instead of names. Importing those may be possible.
+    /// Writes .json  and .yml files to a folder hierarchy mirroring the Azure DevOps hierarchy.
+    /// This lets you search all your build definitions at once using Visual Studio.
+    /// 
+    /// Note: I tried importing the .json files via the Azure DevOps UI to create new definitions.
+    /// However, the import fails, as their format does not exactly match what the UI requires.
     /// </remarks>
     class Program
     {
