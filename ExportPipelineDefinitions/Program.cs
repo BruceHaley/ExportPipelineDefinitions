@@ -75,7 +75,7 @@ namespace ExportPipelineDefinitions
 
                 foreach (Proj proj in projectList)
                 {
-                    Console.WriteLine("\n### " + proj.name);
+                    Console.WriteLine("\n### " + proj.name + " Project");
                     BuildCsvString(1, proj.name);
 
                     definitionList.Clear();
@@ -119,8 +119,11 @@ namespace ExportPipelineDefinitions
             }
 
             // Write .csv file containing all build definitions.
-            BuildCsvString(1, "Flush buffer"); 
-            File.WriteAllText(outputPath + @"\BuildDefinitions.csv", csvString);
+            if (Directory.Exists(outputPath))
+            {
+                BuildCsvString(1, "Writing to column 1 flushes the csvColumns buffer to csvString");
+                File.WriteAllText(outputPath + @"\BuildDefinitions.csv", csvString);
+            }
 
             Console.WriteLine("Done. Press any key");
             Console.ReadKey();
@@ -129,12 +132,11 @@ namespace ExportPipelineDefinitions
         public static void GetSettings()
         {
             personalAccessToken = Properties.Settings.Default.personalAccessToken;
-            Validate(nameof(personalAccessToken), personalAccessToken);
-
             organization = Properties.Settings.Default.organization;
-            Validate(nameof(organization), organization);
-
             outputPath = Properties.Settings.Default.outputPath;
+
+            Validate(nameof(personalAccessToken), personalAccessToken);
+            Validate(nameof(organization), organization);
             Validate(nameof(outputPath), outputPath);
         }
 
@@ -573,7 +575,7 @@ namespace ExportPipelineDefinitions
                 csvString += newRow.Trim(',') + "\r\n";
             }
 
-            // Add column only if columnValue has a value.
+            // Add column(s) only if columnValue has a value.
             if (!string.IsNullOrWhiteSpace(columnValue))
             {
                 while (csvColumns.Count >= columnNumber)
