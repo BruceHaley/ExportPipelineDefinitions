@@ -2,7 +2,7 @@
 This command line app exports all Azure DevOps pipeline definitions to .json and .yml files. It finds all the pipelines to which you have access in your organization. It organizes them in a folder tree on disk. 
 
 **Benefits:** 
-- Lets you search all your build definitions at once using Visual Studio.
+- Lets you search all your build definitions at once using "Find in Files" in Visual Studio, VS Code, or similar.
 - Lets you save snapshots of your pipeline history. 
 
 **Note:** 
