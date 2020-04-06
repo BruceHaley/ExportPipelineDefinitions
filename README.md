@@ -3,7 +3,7 @@ This command line app exports all Azure DevOps pipeline definitions to .json and
 
 **Benefits:** 
 - You can key-word search all your build definitions at once. Just use "Find in Files" in Visual Studio, VS Code, or similar.
-- You can save a snapshot of all your pipelines as they are now for future reference. 
+- You can save snapshots of all your pipelines to build a history for future reference. 
 
 Note: The exported .json files are not in a format that can be imported through the Azure DevOps UI.
 
