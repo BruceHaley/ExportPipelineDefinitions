@@ -8,8 +8,9 @@ It finds all the pipelines to which you have access in your organization.
 
 **Benefits:** 
 - This lets you key-word search globally all pipelines across all projects using "Find in Files" in Visual Studio, VS Code, or other search tool.
-- If you run this app periodically and save the results, you can build a pipeline history archive. 
-- If you manage a large number of ADO pipelines, **you need this app.**
+- You can build a pipeline history archive by running this app periodically and saving the results. 
+
+If you manage a large number of ADO pipelines, **you need this app.**
 
 Note: The exported .json files are not in a format that can be imported using the Azure DevOps UI.
 
