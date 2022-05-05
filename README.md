@@ -1,13 +1,13 @@
 # Export Azure DevOps Pipeline Definitions
-This app traverses all your Azure DevOps pipeline definitions and saves them to your local drive. This makes managing large numbers of pipelines easier by listing them and by making them searchable.
+This app traverses all your Azure DevOps pipeline definitions in all projects and saves them to your local drive. This makes managing large numbers of pipelines easier by listing them and making them searchable.
 
 It finds all the pipelines to which you have access in your organization. 
 - It saves classic pipelines as .json files and yaml pipelines as .yml files, organized in a hierarchical folder tree. 
-- It generates a list of the pipelines in markdown format. 
-- It writes the pipeline projects and names to a spreadsheet. 
+- It generates a list of all pipelines in Markdown format. 
+- It writes the pipeline names and their projects to a spreadsheet. 
 
 **Benefits:** 
-- This lets you key-word search all pipelines at once using "Find in Files" in Visual Studio, VS Code, or other search tool.
+- This lets you key-word search globally all pipelines across all projects using "Find in Files" in Visual Studio, VS Code, or other search tool.
 - If you run this app periodically and save the results, you can build a pipeline history archive. 
 - If you manage a large number of ADO pipelines, **you need this app.**
 
