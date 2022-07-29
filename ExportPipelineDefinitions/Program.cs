@@ -46,6 +46,7 @@ namespace ExportPipelineDefinitions
             public int id;
             public string name;
             public string path;
+            public string type;
         }
 
         static List<BuildDef> definitionList = new List<BuildDef>();
@@ -224,6 +225,7 @@ namespace ExportPipelineDefinitions
                             bd.id = int.Parse(o["id"].ToString());
                             bd.name = o["name"].ToString();
                             bd.path = o["path"].ToString();
+                            bd.type = o.SelectToken("repository.type").ToString();
                             definitionList.Add(bd);
                         }
                     }
@@ -328,7 +330,7 @@ namespace ExportPipelineDefinitions
                         {
                             string saveDirectory = Directory.GetCurrentDirectory();
                             //Directory.SetCurrentDirectory(directory);
-                            DownloadYamlFilesToDirectory(json, directory);
+                            DownloadYamlFilesToDirectory(json, directory, project, buildDef.type);
                             //Directory.SetCurrentDirectory(saveDirectory);
                         }
                     }
@@ -354,7 +356,7 @@ namespace ExportPipelineDefinitions
             return false;
         }
 
-        public static void DownloadYamlFilesToDirectory(JObject json, string directory)
+        public static void DownloadYamlFilesToDirectory(JObject json, string directory, string project, string type)
         {
             // Download the .yml files from the GitHub repo.
             // Get GitHub repo URL for this Azure project.
@@ -418,15 +420,61 @@ namespace ExportPipelineDefinitions
                                 logIndent = "        "; // 8 spaces
                             }
                             string fileName = githubFileUrl.Substring(githubFileUrl.LastIndexOf('/') + 1);
-                            string targetFullFilePath = $"{directory}\\{fileName}";
-                            bool succeeded = DownloadFileFromGithub(githubFileUrl, targetFullFilePath, logIndent);
-                            yamlFileNames.RemoveAt(0);
-                            if (succeeded)
+                            string targetFullFilePath = directory + Path.DirectorySeparatorChar + fileName;
+
+                            if (type == "TfsGit")
                             {
-                                int count = yamlFileNames.Count;
-                                yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
+                                string restUrl = "";
+                                try {
+                                    // targetFullFilePath = $"{directory}" + Path.DirectorySeparatorChar + json["process"]["yamlFilename"];
+                                    restUrl = String.Format("https://{0}/{1}/{2}/_apis/git/repositories/{3}/items?path={4}&download=true&api-version=5.0", domain, organization, project, json["repository"]["properties"]["fullName"],  filePath);
+
+                                    using (HttpClient client = new HttpClient())
+                                    {
+                                        client.DefaultRequestHeaders.Accept.Add(
+                                            new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/octet-stream"));
+
+                                        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                                            Convert.ToBase64String(
+                                                System.Text.ASCIIEncoding.ASCII.GetBytes(
+                                                    string.Format("{0}:{1}", "", personalAccessToken))));
+
+                                            var webRequest = new HttpRequestMessage(HttpMethod.Get, restUrl);
+                                            using (HttpResponseMessage response = client.Send(webRequest))
+                                            {
+                                                response.EnsureSuccessStatusCode();
+                                                using var reader = new StreamReader(response.Content.ReadAsStream());
+                                                string responseBody = reader.ReadToEnd();
+
+                                                using (StreamWriter outputFile = new StreamWriter(targetFullFilePath))
+                                                {
+                                                    outputFile.Write(responseBody);
+                                                }
+                                            }
+                                    }
+                                    int count = yamlFileNames.Count;
+                                    yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine(ex.ToString());
+                                    Console.WriteLine(restUrl);
+                                }
+
+                                // There can be only one Azure DevOps YAML file per pipeline so we can break here.
+                                break;
                             }
-                            githubFileUrl = string.Empty;
+                            else
+                            {
+                                bool succeeded = DownloadFileFromGithub(githubFileUrl, targetFullFilePath, logIndent);
+                                yamlFileNames.RemoveAt(0);
+                                if (succeeded)
+                                {
+                                    int count = yamlFileNames.Count;
+                                    yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
+                                }
+                                githubFileUrl = string.Empty;
+                            }
                         }
                         // Read .yml file from repo.
                         // Look for template references to other .yml files. Add any found to yamlFileNames list.

@@ -18,6 +18,7 @@ Note: The exported .json files are not in a format that can be imported using th
 Prerequirements:
 1. Create PAT token with following scopes:
 * Build: Read
+* Code: Read
 * Project and Team: Read
 * Release: Read
 
