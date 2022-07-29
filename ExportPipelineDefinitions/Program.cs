@@ -122,18 +122,17 @@ namespace ExportPipelineDefinitions
             if (Directory.Exists(outputPath))
             {
                 BuildCsvString(1, "Writing to column 1 flushes the csvColumns buffer to csvString");
-                File.WriteAllText(outputPath + @"\BuildDefinitions.csv", csvString);
+                File.WriteAllText(outputPath + Path.DirectorySeparatorChar + @"BuildDefinitions.csv", csvString);
             }
 
-            Console.WriteLine("Done. Press any key");
-            Console.ReadKey();
+            Console.WriteLine("Done.");
         }
 
         public static void GetSettings()
         {
-            personalAccessToken = Properties.Settings.Default.personalAccessToken;
-            organization = Properties.Settings.Default.organization;
-            outputPath = Properties.Settings.Default.outputPath;
+            personalAccessToken = Environment.GetEnvironmentVariable("personalAccessToken");
+            organization = Environment.GetEnvironmentVariable("organization");
+            outputPath = Environment.GetEnvironmentVariable("outputPath");
 
             Validate(nameof(personalAccessToken), personalAccessToken);
             Validate(nameof(organization), organization);
@@ -146,7 +145,7 @@ namespace ExportPipelineDefinitions
             {
                 throw new InvalidDataException(
                     string.Format(
-                        "Invalid {0} value in file {1}.config.",
+                        "Invalid {0} value in environment variable",
                         nameOfVar,
                         System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName));
             }
@@ -313,17 +312,17 @@ namespace ExportPipelineDefinitions
                         // Write json to a file
                         string fileContent = json.ToString();
 
-                        string directory = outputPath + project + "\\" + definitionType + "s\\" + buildDef.path;
+                        string directory = outputPath + project + Path.DirectorySeparatorChar + definitionType + "s" + Path.DirectorySeparatorChar + buildDef.path;
+                        directory = directory.Replace("/\\", "/");
                         System.IO.Directory.CreateDirectory(directory);
                         string buildName = buildDef.name.Replace("?", "").Replace(":", "");
                         if (isYamlPipeline)
                         {
-                            directory += "\\" + buildName;
+                            directory += Path.DirectorySeparatorChar + buildName;
                             System.IO.Directory.CreateDirectory(directory);
                         }
-                        directory = directory.Replace("\\\\", "\\").Replace("\\\\", "\\");
 
-                        string fullFilePath = directory + "\\" + buildDef.name.Replace("?", "").Replace(":", "") + ".json";
+                        string fullFilePath = directory + Path.DirectorySeparatorChar + buildDef.name.Replace("?", "").Replace(":", "") + ".json";
                         System.IO.File.WriteAllText(fullFilePath, fileContent);
                         if (isYamlPipeline)
                         {
