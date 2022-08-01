@@ -10,6 +10,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
+using System.Runtime.InteropServices;
 
 namespace ExportPipelineDefinitions
 {
@@ -46,6 +47,7 @@ namespace ExportPipelineDefinitions
             public int id;
             public string name;
             public string path;
+            public string type;
         }
 
         static List<BuildDef> definitionList = new List<BuildDef>();
@@ -122,18 +124,17 @@ namespace ExportPipelineDefinitions
             if (Directory.Exists(outputPath))
             {
                 BuildCsvString(1, "Writing to column 1 flushes the csvColumns buffer to csvString");
-                File.WriteAllText(outputPath + @"\BuildDefinitions.csv", csvString);
+                File.WriteAllText(outputPath + Path.DirectorySeparatorChar + @"BuildDefinitions.csv", csvString);
             }
 
-            Console.WriteLine("Done. Press any key");
-            Console.ReadKey();
+            Console.WriteLine("Done.");
         }
 
         public static void GetSettings()
         {
-            personalAccessToken = Properties.Settings.Default.personalAccessToken;
-            organization = Properties.Settings.Default.organization;
-            outputPath = Properties.Settings.Default.outputPath;
+            personalAccessToken = Environment.GetEnvironmentVariable("personalAccessToken");
+            organization = Environment.GetEnvironmentVariable("organization");
+            outputPath = Environment.GetEnvironmentVariable("outputPath");
 
             Validate(nameof(personalAccessToken), personalAccessToken);
             Validate(nameof(organization), organization);
@@ -146,7 +147,7 @@ namespace ExportPipelineDefinitions
             {
                 throw new InvalidDataException(
                     string.Format(
-                        "Invalid {0} value in file {1}.config.",
+                        "Invalid {0} value in environment variable",
                         nameOfVar,
                         System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName));
             }
@@ -225,6 +226,7 @@ namespace ExportPipelineDefinitions
                             bd.id = int.Parse(o["id"].ToString());
                             bd.name = o["name"].ToString();
                             bd.path = o["path"].ToString();
+                            bd.type = o.SelectToken("repository.type").ToString();
                             definitionList.Add(bd);
                         }
                     }
@@ -313,23 +315,27 @@ namespace ExportPipelineDefinitions
                         // Write json to a file
                         string fileContent = json.ToString();
 
-                        string directory = outputPath + project + "\\" + definitionType + "s\\" + buildDef.path;
+                        string directory = outputPath + project + Path.DirectorySeparatorChar + definitionType + "s" + Path.DirectorySeparatorChar + buildDef.path;
+                        directory = directory.Replace("/\\", "/");
+                        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                        {
+                            directory = directory.Replace("\\", "/");
+                        }
                         System.IO.Directory.CreateDirectory(directory);
                         string buildName = buildDef.name.Replace("?", "").Replace(":", "");
                         if (isYamlPipeline)
                         {
-                            directory += "\\" + buildName;
+                            directory += Path.DirectorySeparatorChar + buildName;
                             System.IO.Directory.CreateDirectory(directory);
                         }
-                        directory = directory.Replace("\\\\", "\\").Replace("\\\\", "\\");
 
-                        string fullFilePath = directory + "\\" + buildDef.name.Replace("?", "").Replace(":", "") + ".json";
+                        string fullFilePath = directory + Path.DirectorySeparatorChar + buildDef.name.Replace("?", "").Replace(":", "") + ".json";
                         System.IO.File.WriteAllText(fullFilePath, fileContent);
                         if (isYamlPipeline)
                         {
                             string saveDirectory = Directory.GetCurrentDirectory();
                             //Directory.SetCurrentDirectory(directory);
-                            DownloadYamlFilesToDirectory(json, directory);
+                            DownloadYamlFilesToDirectory(json, directory, project, buildDef.type);
                             //Directory.SetCurrentDirectory(saveDirectory);
                         }
                     }
@@ -355,7 +361,7 @@ namespace ExportPipelineDefinitions
             return false;
         }
 
-        public static void DownloadYamlFilesToDirectory(JObject json, string directory)
+        public static void DownloadYamlFilesToDirectory(JObject json, string directory, string project, string type)
         {
             // Download the .yml files from the GitHub repo.
             // Get GitHub repo URL for this Azure project.
@@ -419,15 +425,60 @@ namespace ExportPipelineDefinitions
                                 logIndent = "        "; // 8 spaces
                             }
                             string fileName = githubFileUrl.Substring(githubFileUrl.LastIndexOf('/') + 1);
-                            string targetFullFilePath = $"{directory}\\{fileName}";
-                            bool succeeded = DownloadFileFromGithub(githubFileUrl, targetFullFilePath, logIndent);
-                            yamlFileNames.RemoveAt(0);
-                            if (succeeded)
+                            string targetFullFilePath = directory + Path.DirectorySeparatorChar + fileName;
+
+                            if (type == "TfsGit")
                             {
-                                int count = yamlFileNames.Count;
-                                yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
+                                string restUrl = "";
+                                try {
+                                    restUrl = String.Format("https://{0}/{1}/{2}/_apis/git/repositories/{3}/items?path={4}&download=true&api-version=5.0", domain, organization, project, json["repository"]["name"],  filePath);
+
+                                    using (HttpClient client = new HttpClient())
+                                    {
+                                        client.DefaultRequestHeaders.Accept.Add(
+                                            new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/octet-stream"));
+
+                                        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                                            Convert.ToBase64String(
+                                                System.Text.ASCIIEncoding.ASCII.GetBytes(
+                                                    string.Format("{0}:{1}", "", personalAccessToken))));
+
+                                            var webRequest = new HttpRequestMessage(HttpMethod.Get, restUrl);
+                                            using (HttpResponseMessage response = client.Send(webRequest))
+                                            {
+                                                response.EnsureSuccessStatusCode();
+                                                using var reader = new StreamReader(response.Content.ReadAsStream());
+                                                string responseBody = reader.ReadToEnd();
+
+                                                using (StreamWriter outputFile = new StreamWriter(targetFullFilePath))
+                                                {
+                                                    outputFile.Write(responseBody);
+                                                }
+                                            }
+                                    }
+                                    int count = yamlFileNames.Count;
+                                    yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine(ex.ToString());
+                                    Console.WriteLine(restUrl);
+                                }
+
+                                // There can be only one Azure DevOps YAML file per pipeline so we can break here.
+                                break;
                             }
-                            githubFileUrl = string.Empty;
+                            else
+                            {
+                                bool succeeded = DownloadFileFromGithub(githubFileUrl, targetFullFilePath, logIndent);
+                                yamlFileNames.RemoveAt(0);
+                                if (succeeded)
+                                {
+                                    int count = yamlFileNames.Count;
+                                    yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
+                                }
+                                githubFileUrl = string.Empty;
+                            }
                         }
                         // Read .yml file from repo.
                         // Look for template references to other .yml files. Add any found to yamlFileNames list.

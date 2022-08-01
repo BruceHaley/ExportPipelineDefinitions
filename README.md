@@ -15,7 +15,35 @@ If you manage a large number of ADO pipelines, **you need this app.**
 Note: The exported .json files are not in a format that can be imported using the Azure DevOps UI.
 
 ## Quickstart
-1. Go to [releases](../../releases). Click-to-download the .exe, .config, and .dll files. Put them together in a folder. 
-1. Edit the .config file and set the three values: personalAccessToken, organization, and outputPath.
-   See details in [ExportPipelineDefinitions/Program.cs](https://github.com/BruceHaley/ExportPipelineDefinitions/blob/51792ed245a4c62cadb4707ed62960c6d959102f/ExportPipelineDefinitions/Program.cs#L30), lines 30 - 32.
-1. Run ExportPipelineDefinitions.exe.
+Prerequirements:
+1. Create PAT token with following scopes:
+* Build: Read
+* Code: Read
+* Project and Team: Read
+* Release: Read
+
+### On Windows
+1. Go to [releases](../../releases). Click-to-download the .zip file and extract it to folder.
+2. Start PowerShell and run commands:
+```powershell
+$env:personalAccessToken = "<PAT token>"
+$env:organization = "<Azure DevOps organization name>"
+$env:outputPath = "C:\temp\PipelineDefinitions\"
+.\ExportPipelineDefinitions.exe
+```
+
+### On Linux container
+1. Clone this GIT repository
+2. Build container image `docker build . -t export-pipeline-definitions`
+3. Run tool as container:
+```bash
+mkdir output
+docker run -it --rm \
+	--user $(id -u):$(id -g) \
+	--cap-drop ALL \
+	--read-only \
+	-e personalAccessToken="<PAT token>" \
+	-e organization="<Azure DevOps organization name>" \
+	-v $(pwd)/output:/output \
+	export-pipeline-definitions
+```
