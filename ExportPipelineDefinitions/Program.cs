@@ -431,33 +431,42 @@ namespace ExportPipelineDefinitions
                             {
                                 string restUrl = "";
                                 try {
-                                    restUrl = String.Format("https://{0}/{1}/{2}/_apis/git/repositories/{3}/items?path={4}&download=true&api-version=5.0", domain, organization, project, json["repository"]["name"],  filePath);
+                                    restUrl = String.Format("https://{0}/{1}/{2}/_apis/pipelines/{3}/preview?api-version=7.1-preview.1", domain, organization, project, json["id"]);
 
                                     using (HttpClient client = new HttpClient())
                                     {
                                         client.DefaultRequestHeaders.Accept.Add(
-                                            new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/octet-stream"));
+                                            new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
                                         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
                                             Convert.ToBase64String(
                                                 System.Text.ASCIIEncoding.ASCII.GetBytes(
                                                     string.Format("{0}:{1}", "", personalAccessToken))));
 
-                                            var webRequest = new HttpRequestMessage(HttpMethod.Get, restUrl);
-                                            using (HttpResponseMessage response = client.Send(webRequest))
+                                        var requestContent = new StringContent("{\"previewRun\":true}", Encoding.UTF8, "application/json");
+                                        var webRequest = new HttpRequestMessage(HttpMethod.Post, restUrl)
+                                        {
+                                            Content = requestContent
+                                        };
+                                        using (HttpResponseMessage response = client.Send(webRequest))
+                                        {
+                                            response.EnsureSuccessStatusCode();
+                                            using var reader = new StreamReader(response.Content.ReadAsStream());
+                                            string responseBody = reader.ReadToEnd();
+                                            if (responseBody.Contains("!DOCTYPE"))
                                             {
-                                                response.EnsureSuccessStatusCode();
-                                                using var reader = new StreamReader(response.Content.ReadAsStream());
-                                                string responseBody = reader.ReadToEnd();
-
-                                                using (StreamWriter outputFile = new StreamWriter(targetFullFilePath))
-                                                {
-                                                    outputFile.Write(responseBody);
-                                                }
+                                                throw new AccessViolationException(
+                                                    string.Format(
+                                                        "Cannot access Azure. Please ensure personalAccessToken and organization values are correct in file {0}.config.",
+                                                        System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName));
                                             }
+                                            JObject jsonNew = JObject.Parse(responseBody);
+                                            using (StreamWriter outputFile = new StreamWriter(targetFullFilePath))
+                                            {
+                                                outputFile.Write(jsonNew["finalYaml"].ToString());
+                                            }
+                                        }
                                     }
-                                    int count = yamlFileNames.Count;
-                                    yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
                                 }
                                 catch (Exception ex)
                                 {
