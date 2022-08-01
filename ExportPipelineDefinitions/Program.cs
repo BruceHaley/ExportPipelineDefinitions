@@ -10,6 +10,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 using System.Net;
+using System.Runtime.InteropServices;
 
 namespace ExportPipelineDefinitions
 {
@@ -316,6 +317,10 @@ namespace ExportPipelineDefinitions
 
                         string directory = outputPath + project + Path.DirectorySeparatorChar + definitionType + "s" + Path.DirectorySeparatorChar + buildDef.path;
                         directory = directory.Replace("/\\", "/");
+                        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                        {
+                            directory = directory.Replace("\\", "/");
+                        }
                         System.IO.Directory.CreateDirectory(directory);
                         string buildName = buildDef.name.Replace("?", "").Replace(":", "");
                         if (isYamlPipeline)
@@ -426,8 +431,7 @@ namespace ExportPipelineDefinitions
                             {
                                 string restUrl = "";
                                 try {
-                                    // targetFullFilePath = $"{directory}" + Path.DirectorySeparatorChar + json["process"]["yamlFilename"];
-                                    restUrl = String.Format("https://{0}/{1}/{2}/_apis/git/repositories/{3}/items?path={4}&download=true&api-version=5.0", domain, organization, project, json["repository"]["properties"]["fullName"],  filePath);
+                                    restUrl = String.Format("https://{0}/{1}/{2}/_apis/git/repositories/{3}/items?path={4}&download=true&api-version=5.0", domain, organization, project, json["repository"]["name"],  filePath);
 
                                     using (HttpClient client = new HttpClient())
                                     {
