@@ -12,7 +12,7 @@ namespace ExportPipelineDefinitions.Properties {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "16.2.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "16.4.0.0")]
     internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase {
         
         private static Settings defaultInstance = ((Settings)(global::System.Configuration.ApplicationSettingsBase.Synchronized(new Settings())));
@@ -25,19 +25,19 @@ namespace ExportPipelineDefinitions.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("C:\\temp\\PipelineDefinitions\\")]
-        public string outputPath {
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string azurePersonalAccessToken {
             get {
-                return ((string)(this["outputPath"]));
+                return ((string)(this["azurePersonalAccessToken"]));
             }
         }
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string personalAccessToken {
+        public string githubPersonalAccessToken {
             get {
-                return ((string)(this["personalAccessToken"]));
+                return ((string)(this["githubPersonalAccessToken"]));
             }
         }
         
@@ -47,6 +47,15 @@ namespace ExportPipelineDefinitions.Properties {
         public string organization {
             get {
                 return ((string)(this["organization"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("C:\\temp\\PipelineDefinitions\\")]
+        public string outputPath {
+            get {
+                return ((string)(this["outputPath"]));
             }
         }
     }
