@@ -25,7 +25,7 @@ namespace ExportPipelineDefinitions
     /// </remarks>
     class Program
     {
-        // Before running this program, set up the following three vars in file Properties\Settings.settings.
+        // Before running this program, set up the following vars in file Properties\Settings.settings.
         //
         // azurePersonalAccessToken description: https://docs.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/pats?view=azure-devops
         // githubPersonalAccessToken (optional) is used to download .yml pipelines files from private Github repos. How to create yours:
