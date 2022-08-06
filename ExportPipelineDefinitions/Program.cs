@@ -86,7 +86,7 @@ namespace ExportPipelineDefinitions
                     PopulateBuildDefinitionList(proj.name).Wait();
                     if (definitionList.Count > 0)
                     {
-                        Console.WriteLine("  * builds");
+                        Console.WriteLine("  * #### builds");
                         BuildCsvString(2, "builds");
                     }
                     foreach (BuildDef buildDef in definitionList)
@@ -99,7 +99,7 @@ namespace ExportPipelineDefinitions
                     GetReleaseDefinitions(proj.name).Wait();
                     if (definitionList.Count > 0)
                     {
-                        Console.WriteLine("  * releases");
+                        Console.WriteLine("  * #### releases");
                         BuildCsvString(2, "releases");
                     }
                     foreach (BuildDef buildDef in definitionList)
@@ -107,6 +107,7 @@ namespace ExportPipelineDefinitions
                         WriteDefinitionToFile(proj.name, "release", buildDef).Wait();
                     }
                 }
+                Console.WriteLine("\n'**' = File not found. Possible authentication, repo, or file name issue.\n");
                 Console.WriteLine("Finished writing definition files to: " + outputPath + "\n");
             }
             catch (Exception ex)
@@ -164,7 +165,7 @@ namespace ExportPipelineDefinitions
             //    https://docs.microsoft.com/en-us/rest/api/azure/devops/core/projects/list?view=azure-devops-rest-5.1
 
             string restUrl = String.Format("https://{0}/{1}/_apis/projects", domain, organization);
-            Console.WriteLine("Getting build definitions from " + restUrl);
+            Console.WriteLine("Getting build definitions from " + restUrl + "\n");
 
             using (HttpClient client = new HttpClient())
             {
@@ -197,7 +198,7 @@ namespace ExportPipelineDefinitions
                     }
                 }
             }
-            projectList.Sort(CompareProjs);
+            projectList.Sort(CompareProjects);
         }
 
         public static async Task PopulateBuildDefinitionList(string project = "SDK_v4")
@@ -206,7 +207,6 @@ namespace ExportPipelineDefinitions
 
             try
             {
-                //string restUrl = String.Format("https://{0}/{1}/{2}/_apis/build/definitions?api-version=5.0", buildDomain, organization, project);
                 string restUrl = String.Format("https://{0}/{1}/{2}/_apis/build/definitions?includeAllProperties=true&api-version=5.0", buildDomain, organization, project);
 
                 using (HttpClient client = new HttpClient())
@@ -224,7 +224,7 @@ namespace ExportPipelineDefinitions
                         response.EnsureSuccessStatusCode();
                         string responseBody = await response.Content.ReadAsStringAsync();
                         JObject json = JObject.Parse(responseBody);
-                        //Object json = JsonParser.Deserialize(responseBody);
+
                         foreach (JObject o in json.Last.First)
                         {
                             BuildDef bd = new BuildDef();
@@ -266,7 +266,7 @@ namespace ExportPipelineDefinitions
                         response.EnsureSuccessStatusCode();
                         string responseBody = await response.Content.ReadAsStringAsync();
                         JObject json = JObject.Parse(responseBody);
-                        //Object json = JsonParser.Deserialize(responseBody);
+
                         foreach (JObject o in json.Last.First)
                         {
                             BuildDef bd = new BuildDef();
@@ -320,7 +320,7 @@ namespace ExportPipelineDefinitions
 
                         isYamlPipeline = CheckForYamlPipeline(json);
 
-                        // Write json to a file
+                        // Write the json for the definition to a file
                         string fileContent = json.ToString();
 
                         string directory = outputPath + project + "\\" + definitionType + "s\\" + buildDef.path;
@@ -333,14 +333,16 @@ namespace ExportPipelineDefinitions
                         }
                         directory = directory.Replace("\\\\", "\\").Replace("\\\\", "\\");
 
-                        string fullFilePath = directory + "\\" + buildDef.name.Replace("?", "").Replace(":", "").Replace(@"\", "-").Replace("/", "-") + ".json";
+                        string filePathWithoutExtension = directory + "\\" + buildDef.name.Replace("?", "").Replace(":", "").Replace(@"\", "-").Replace("/", "-");
+                        // Limit file path to 259 characters to avoid System.IO.PathTooLongException.
+                        int maxLength = Math.Min(filePathWithoutExtension.Length, 254); 
+                        string fullFilePath = filePathWithoutExtension.Substring(0, maxLength) + ".json";
+
                         System.IO.File.WriteAllText(fullFilePath, fileContent);
                         if (isYamlPipeline)
                         {
                             string saveDirectory = Directory.GetCurrentDirectory();
-                            //Directory.SetCurrentDirectory(directory);
                             DownloadYamlFilesToDirectory(json, directory);
-                            //Directory.SetCurrentDirectory(saveDirectory);
                         }
                     }
                 }
@@ -367,125 +369,122 @@ namespace ExportPipelineDefinitions
 
         public static void DownloadYamlFilesToDirectory(JObject json, string directory)
         {
-            // Download the .yml files from the repo.
+            // Download the one .yml file referenced in the definition json.
+            // Then walk the calling chain, recursively downloading any other .yml files.
             if (json != null && json["repository"] != null && json["repository"]["properties"] != null)
             {
-                // Get GitHub repo URL for this Azure project.
-                string gitRepoUrl = null;
+                // Get the git repo URL for this Azure project.
+                string gitRepoBaseUrl = null;
                 if (json["repository"]["properties"]["manageUrl"] != null)
                 {
-                    // This is for the github.com repo.
-                    //gitRepoUrl = json["repository"]["properties"]["manageUrl"].ToString();
-                    gitRepoUrl = GetGithubRepoUrlMinusPath(json);
+                    // Base URL for files in the github.com repo.
+                    gitRepoBaseUrl = GetGithubRepoUrlMinusPath(json);
                 }
                 else if (json["repository"]["url"] != null)
                 {
-                    // This is for the visualstudio.com git repo.  
-                    // This gets dev.azure.com. 
-                    //gitRepoUrl = json["repository"]["url"].ToString();
-                    gitRepoUrl = GetVsoRepoUrlMinusPath(json);
+                    // Base URL for files in the Azure git repo, dev.azure.com. 
+                    gitRepoBaseUrl = GetVsoRepoUrlMinusPath(json);
                 }
                 else if (json["repository"]["properties"]["cloneUrl"] != null)
                 {
-                    // This is for the visualstudio.com git repo.  
-                    //gitRepoUrl = json["repository"]["properties"]["cloneUrl"].ToString();
-                    //gitRepoUrl = GetVsoRepoUrlMinusPath(json);
                     throw new Exception("This should never be called.");
                 }
 
-                if (!string.IsNullOrEmpty(gitRepoUrl))
+                if (!string.IsNullOrWhiteSpace(gitRepoBaseUrl))
                 {
                     //  https://docs.microsoft.com/en-us/rest/api/azure/devops/build/definitions/get?view=azure-devops-rest-5.1#buildrepository
-                    //  BuildRepository Represents a repository used by a build definition.
-                    // Begin loop.
-                    // Get next .yml file name from yamlFileNames list.
-                    // Set yamlFilesRootUrl and githubFileUrl for the first yaml file (The one named in the .json build definition.)
-                    string yamlFilesRootUrl = gitRepoUrl;
+
                     string githubFileUrl = string.Empty;
                     string logIndent = string.Empty;
+                    string currentOffsetFromBaseUrl = String.Empty;
 
                     if (yamlFileNames.Count > 0)
                     {
+                        // Set githubFileUrl for the first yaml file. (That's the one named in the .json build definition.)
                         string firstFile = yamlFileNames.FirstOrDefault();
-                        yamlFilesRootUrl += firstFile.Contains('/') ? "/" + firstFile.Substring(0, firstFile.LastIndexOf('/')) : "";
-                        githubFileUrl = gitRepoUrl + "/" + firstFile;
+                        githubFileUrl = gitRepoBaseUrl + "/" + firstFile;
                         logIndent = "      "; // 6 spaces
                     }
 
                     while (yamlFileNames.Count > 0)
                     {
+                        // Download .yml file from repo.
+                        // Look for template references to other .yml files. Add them to yamlFileNames list.
+                        // Loop.
                         string filePath = yamlFileNames.FirstOrDefault();
+                        currentOffsetFromBaseUrl = filePath.Contains('/') ? filePath.Substring(0, filePath.LastIndexOf('/')) : "";
 
                         if (string.IsNullOrWhiteSpace(githubFileUrl))
                         {
-                            githubFileUrl = yamlFilesRootUrl + "/" + filePath;
+                            // Set githubFileUrl for the next yaml file.
+                            githubFileUrl = gitRepoBaseUrl + filePath;
                             logIndent = "        "; // 8 spaces
                         }
 
                         string fileName = githubFileUrl.Substring(githubFileUrl.LastIndexOf('/') + 1);
-                        string targetFullFilePath = $"{directory}\\{fileName}";
-                        bool succeeded = DownloadFileFromGithub(githubFileUrl, targetFullFilePath, logIndent);
+                        string outputFilePath = $"{directory}\\{fileName}";
+                        bool succeeded = DownloadFileFromGithub(githubFileUrl, outputFilePath, logIndent);
                         yamlFileNames.RemoveAt(0);
+
                         if (succeeded)
                         {
                             int count = yamlFileNames.Count;
-                            yamlFileNames.AddRange(GetYamlTemplateReferencesFromFile(targetFullFilePath));
+                            AddYamlTemplateReferencesFromFile(outputFilePath, currentOffsetFromBaseUrl, ref yamlFileNames);
                         }
                         githubFileUrl = string.Empty;
                     }
-                    // Read .yml file from repo.
-                    // Look for template references to other .yml files. Add any found to yamlFileNames list.
-                    // Write .yml file to directory.
-                    // Loop.
                 }
                 else
                 {
-                    Console.WriteLine("Could not get gitRepoUrl value for .yml file.");
+                    Console.WriteLine("Could not get gitRepoBaseUrl value for .yml file.");
                 }
             }
-
-            //Directory.SetCurrentDirectory(savedDirectory);
         }
 
         private static string GetVsoRepoUrlMinusPath(JObject json)
         {
-            string repoUrl = json["repository"]["url"].ToString();
-            string organization = repoUrl.Split('/')[3];
-            string project = repoUrl.Split('/')[4];
-            string repository = repoUrl.Split('/')[6];
-            string commitOrBranch = json["repository"]["defaultBranch"].ToString();
-            //string path = json["process"]["yamlFilename"].ToString();
+            string repoUrl = "";
+            string jsonUrl = json["repository"]["url"].ToString();
+            string[] jsonUrlSplit = jsonUrl.Split('/');
 
-            string RepoUrl = $"https://dev.azure.com/{organization}/{project}/_apis/sourceProviders/tfsgit" +
-                $"/filecontents?&repository={repository}&commitOrBranch={commitOrBranch}&api-version=5.0-preview.1&path=";
-            //$"/filecontents?&repository={repository}&commitOrBranch={commitOrBranch}&api-version=5.0-preview.1&path={path}";
+            if (jsonUrlSplit.Length >= 7)
+            {
+                string organization = jsonUrlSplit[3];
+                string project = jsonUrlSplit[4];
+                string repository = jsonUrlSplit[6];
+                string commitOrBranch = json["repository"]["defaultBranch"].ToString();
 
-            return RepoUrl;
+                repoUrl = $"https://dev.azure.com/{organization}/{project}/_apis/sourceProviders/tfsgit" +
+                    $"/filecontents?&repository={repository}&commitOrBranch={commitOrBranch}&api-version=5.0-preview.1&path=";
+            }
+            else
+            {
+                // Not enough split elements to form a valid repo URL. Repo may no longer be available.
+                Console.WriteLine($"\nRepo not available: {jsonUrl}");
+                repoUrl = jsonUrl;
+            }
+
+            return repoUrl;
         }
 
         private static string GetGithubRepoUrlMinusPath(JObject json)
         {
-            string repoUrl = json["repository"]["url"].ToString();
-            string organization = repoUrl.Split('/')[3];
-            string project = repoUrl.Split('/')[4].Split('.')[0];
-            //string path = json["process"]["yamlFilename"].ToString();
+            string jsonUrl = json["repository"]["url"].ToString();
+            string organization = jsonUrl.Split('/')[3];
+            string project = jsonUrl.Split('/')[4].Split('.')[0];
             string commitOrBranch = json["repository"]["defaultBranch"].ToString();
+            string repoUrl = $"https://raw.githubusercontent.com/{organization}/{project}/{commitOrBranch}/";
 
-            string RepoUrl = $"https://raw.githubusercontent.com/{organization}/{project}/{commitOrBranch}/";
-            //string RepoUrl = $"https://raw.githubusercontent.com/{organization}/{project}/{commitOrBranch}/{path}";
-
-            //https://raw.githubusercontent.com/microsoft/BotFramework-WebChat/master/packages/embed/azure-pipelines.yml
-
-            return RepoUrl;
+            return repoUrl;
         }
 
-        private static bool DownloadFileFromGithub(string githubFileUrl, string fullFilePath, string logIndent)
+        private static bool DownloadFileFromGithub(string githubFileUrl, string outputFilePath, string logIndent)
         {
             // https://gist.github.com/EvanSnapp/ddf7f7f793474ea9631cbc0960295983
             // https://github.com/zayenCh/DownloadFile/blob/master/Downloader.cs
 
             int column = (logIndent.Length / 2) + 1;
-            if (!string.IsNullOrEmpty(githubPersonalAccessToken) && githubFileUrl.Contains("githubusercontent"))
+            if (!string.IsNullOrWhiteSpace(githubPersonalAccessToken) && githubFileUrl.Contains("githubusercontent"))
             {
                 githubFileUrl += $"?access_token={githubPersonalAccessToken}";
             }
@@ -495,8 +494,8 @@ namespace ExportPipelineDefinitions
             try
             {
                 string contents = webClient.DownloadString(new Uri(githubFileUrl));
-                File.WriteAllText(fullFilePath, contents);
-                string fileName = fullFilePath.Substring(fullFilePath.LastIndexOf("\\") + 1);
+                File.WriteAllText(outputFilePath, contents);
+                string fileName = outputFilePath.Substring(outputFilePath.LastIndexOf("\\") + 1);
                 Console.WriteLine($"{logIndent}* {fileName}");
                 BuildCsvString(column, fileName);
 
@@ -504,11 +503,11 @@ namespace ExportPipelineDefinitions
             }
             catch (Exception ex)
             {
-                string fileName = fullFilePath.Substring(fullFilePath.LastIndexOf("\\") + 1);
+                string fileName = outputFilePath.Substring(outputFilePath.LastIndexOf("\\") + 1);
                 Console.WriteLine($"{logIndent}* {fileName}**");
                 BuildCsvString(column, fileName + "**");
                 string contents = $"* {ex.Message.ToString()}\r\n{githubFileUrl}";
-                File.WriteAllText(fullFilePath, contents);
+                File.WriteAllText(outputFilePath, contents);
                 if (ex.Message.ToString().Contains("(404)"))
                 {
                     //Console.WriteLine($"Not Found (404): {githubFileUrl}");
@@ -521,9 +520,10 @@ namespace ExportPipelineDefinitions
             return false;
         }
 
-        private static List<string> GetYamlTemplateReferencesFromFile(string targetFullFilePath)
+        private static void AddYamlTemplateReferencesFromFile(
+            string targetFullFilePath, string currentOffsetFromRootUrl, ref List<string> yamlFileNames)
         {
-            List<string> references = new List<string>();
+            //List<string> references = new List<string>();
             string match = "- template:";
 
             var lines = File.ReadLines(targetFullFilePath);
@@ -532,17 +532,24 @@ namespace ExportPipelineDefinitions
                 if (line.Contains(match))
                 {
                     string name = line.Replace(match, "").Trim();
-                    if (!name.StartsWith("#") && !references.Contains(name))
+                    int index = name.IndexOf("#");
+                    if (index >= 0) name = name.Remove(index).TrimEnd(); // Remove any comment
+                    if (!String.IsNullOrWhiteSpace(name))
                     {
-                        references.Add(name);
+                        // Normalize the relative path.
+                        name = Path.GetFullPath((Path.Combine("/", currentOffsetFromRootUrl, name))).Replace(@"C:\", "").TrimStart('\\').Replace(@"\", "/");
+                        if (!yamlFileNames.Contains(name))
+                        {
+                            yamlFileNames.Add(name);
+                        }
                     }
                 }
             }
 
-            return references;
+            return;
         }
 
-        private static int CompareProjs(Proj x, Proj y)
+        private static int CompareProjects(Proj x, Proj y)
         {
             if (x == null)
             {
