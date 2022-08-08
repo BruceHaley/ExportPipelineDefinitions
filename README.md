@@ -9,7 +9,7 @@ This app reads Azure DevOps pipeline definitions in all your projects and writes
 
 ## How to search:
 
-From the root folder, use "Find in Files" in Visual Studio, VS Code, or other text editor.
+From the root folder, use "Find in Files" in Visual Studio, VS Code, or other text search tool.
 
 ## How it works:
 
