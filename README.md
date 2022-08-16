@@ -1,8 +1,8 @@
-# Azure DevOps Pipelines Search Aid
+# Azure DevOps Pipelines Search Setup Tool
 This app makes all your Azure DevOps pipelines searchable by exporting them as JSON and YAML files to your local drive.
 
 ## Benefits:
-- Lets you key-word search all pipeline definitions across all projects at once. 
+- Lets you globally search all pipeline definitions across all projects at once. 
 - Lets you build a pipeline history archive by running this app periodically. 
 - Creates a spreadsheet with pipeline names and their projects. 
 - Lists pipeline call hierarchies to the console in Markdown format. 
