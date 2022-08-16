@@ -14,7 +14,7 @@ From the root folder, use "Find in Files" in Visual Studio, VS Code, or other se
 ## How it works:
 
 The app finds all pipelines in all projects to which you have access in your organization. 
-It saves classic pipelines as .json files and YAML pipelines as .yml files. Files are organized hierarchically in a folder tree on your local drive. 
+It saves classic pipelines as .json files and YAML pipelines as .yml files. Files are organized by project hierarchically in a folder tree on your local drive. 
 (Note: The .json files are not importable using [Import a pipeline](https://docs.microsoft.com/en-us/azure/devops/pipelines/get-started/clone-import-pipeline?view=azure-devops&tabs=classic#export-and-import-a-pipeline) in ADO.)
 
 If you manage a large number of ADO pipelines, **you need this app.**
