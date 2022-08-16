@@ -1,9 +1,9 @@
-# Azure DevOps Pipelines Indexer
-This app reads Azure DevOps pipeline definitions in all your projects and writes them to a searchable folder structure on your local drive.
+# Azure DevOps Pipelines Search Aid
+This app makes all your Azure DevOps pipelines searchable by exporting them as JSON and YAML files to your local drive.
 
 ## Benefits:
-- You can key-word search all pipelines across all projects at once. 
-- You can build a pipeline history archive by running this app periodically. 
+- Lets you key-word search all pipeline definitions across all projects at once. 
+- Lets you build a pipeline history archive by running this app periodically. 
 - Creates a spreadsheet with pipeline names and their projects. 
 - Lists pipeline call hierarchies to the console in Markdown format. 
 
@@ -14,7 +14,7 @@ From the root folder, use "Find in Files" in Visual Studio, VS Code, or other se
 ## How it works:
 
 The app finds all pipelines in all projects to which you have access in your organization. 
-It saves classic pipelines as .json files and yaml pipelines as .yml files. Files are organized hierarchically in a folder tree on your local drive. 
+It saves classic pipelines as .json files and YAML pipelines as .yml files. Files are organized hierarchically in a folder tree on your local drive. 
 (Note: The .json files are not importable using [Import a pipeline](https://docs.microsoft.com/en-us/azure/devops/pipelines/get-started/clone-import-pipeline?view=azure-devops&tabs=classic#export-and-import-a-pipeline) in ADO.)
 
 If you manage a large number of ADO pipelines, **you need this app.**
