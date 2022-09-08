@@ -9,7 +9,7 @@ This app makes all your Azure DevOps pipelines globally searchable by exporting 
 
 ## How to search:
 
-From the root folder, use "Find in Files" in Visual Studio, VS Code, or other search tool.
+Once the export is complete, use "Find in Files" in Visual Studio, VS Code, or other search tool.
 
 ## How it works:
 
