@@ -523,17 +523,18 @@ namespace ExportPipelineDefinitions
         private static void AddYamlTemplateReferencesFromFile(
             string targetFullFilePath, string currentOffsetFromRootUrl, ref List<string> yamlFileNames)
         {
-            //List<string> references = new List<string>();
-            string match = "- template:";
+            string match = "template:";
 
             var lines = File.ReadLines(targetFullFilePath);
             foreach (string line in lines)
             {
                 if (line.Contains(match))
                 {
-                    string name = line.Replace(match, "").Trim();
-                    int index = name.IndexOf("#");
-                    if (index >= 0) name = name.Remove(index).TrimEnd(); // Remove any comment
+                    string name = line.Trim();
+                    if (name.StartsWith("::")) name = ""; // Delete an inline script comment.
+                    int index = name.IndexOf("#"); // Find and remove any other comment.
+                    if (index >= 0) name = name.Remove(index).TrimEnd();
+                    name = name.TrimStart('-').Replace(match, "").Trim(); // TrimStart() handles the case of "- template:".
                     if (!String.IsNullOrWhiteSpace(name))
                     {
                         // Normalize the relative path.
