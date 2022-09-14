@@ -43,6 +43,8 @@ namespace ExportPipelineDefinitions
         static string domain = buildDomain;
         static bool isYamlPipeline = false;
         static List<string> yamlFileNames = new List<string>();
+        // For holding duplicate template file names found in yamlFileNames. Allows avoiding file overwrites.
+        static HashSet<string> yamlFileNameDuplicates = new HashSet<string>(); 
 
         public class BuildDef
         {
@@ -164,7 +166,7 @@ namespace ExportPipelineDefinitions
             // Documentation: https://docs.microsoft.com/en-us/rest/api/azure/devops/?view=azure-devops-server-rest-5.0
             //    https://docs.microsoft.com/en-us/rest/api/azure/devops/core/projects/list?view=azure-devops-rest-5.1
 
-            string restUrl = String.Format("https://{0}/{1}/_apis/projects", domain, organization);
+            string restUrl = string.Format("https://{0}/{1}/_apis/projects", domain, organization);
             Console.WriteLine("Getting build definitions from " + restUrl + "\n");
 
             using (HttpClient client = new HttpClient())
@@ -207,7 +209,7 @@ namespace ExportPipelineDefinitions
 
             try
             {
-                string restUrl = String.Format("https://{0}/{1}/{2}/_apis/build/definitions?includeAllProperties=true&api-version=5.0", buildDomain, organization, project);
+                string restUrl = string.Format("https://{0}/{1}/{2}/_apis/build/definitions?includeAllProperties=true&api-version=5.0", buildDomain, organization, project);
 
                 using (HttpClient client = new HttpClient())
                 {
@@ -249,7 +251,7 @@ namespace ExportPipelineDefinitions
 
             try
             {
-                string restUrl = String.Format("https://{0}/{1}/{2}/_apis/release/definitions?api-version=5.0", releaseDomain, organization, project);
+                string restUrl = string.Format("https://{0}/{1}/{2}/_apis/release/definitions?api-version=5.0", releaseDomain, organization, project);
 
                 using (HttpClient client = new HttpClient())
                 {
@@ -295,7 +297,7 @@ namespace ExportPipelineDefinitions
 
             try
             {
-                string restUrl = String.Format("https://{0}/{1}/{2}/_apis/{3}/definitions/{4}?api-version=5.0",
+                string restUrl = string.Format("https://{0}/{1}/{2}/_apis/{3}/definitions/{4}?api-version=5.0",
                     domain, organization, project, definitionType, buildDef.id);
 
                 using (HttpClient client = new HttpClient())
@@ -357,6 +359,7 @@ namespace ExportPipelineDefinitions
         public static bool CheckForYamlPipeline(JObject json)
         {
             yamlFileNames.Clear();
+            yamlFileNameDuplicates.Clear();
 
             if (json != null && json["process"] != null && json["process"]["yamlFilename"] != null)
             {
@@ -367,10 +370,14 @@ namespace ExportPipelineDefinitions
             return false;
         }
 
+        /// <summary>
+        /// Download the root .yml file, that is, the file referenced in the definition json.
+        /// Then recursively find all template references and download those .yml template files.
+        /// </summary>
+        /// <param name="json"></param>
+        /// <param name="directory"></param>
         public static void DownloadYamlFilesToDirectory(JObject json, string directory)
         {
-            // Download the one .yml file referenced in the definition json.
-            // Then walk the calling chain, recursively downloading any other .yml files.
             if (json != null && json["repository"] != null && json["repository"]["properties"] != null)
             {
                 // Get the git repo URL for this Azure project.
@@ -396,7 +403,7 @@ namespace ExportPipelineDefinitions
 
                     string githubFileUrl = string.Empty;
                     string logIndent = string.Empty;
-                    string currentOffsetFromBaseUrl = String.Empty;
+                    string currentOffsetFromBaseUrl = string.Empty;
 
                     if (yamlFileNames.Count > 0)
                     {
@@ -412,6 +419,7 @@ namespace ExportPipelineDefinitions
                         // Look for template references to other .yml files. Add them to yamlFileNames list.
                         // Loop.
                         string filePath = yamlFileNames.FirstOrDefault();
+
                         currentOffsetFromBaseUrl = filePath.Contains('/') ? filePath.Substring(0, filePath.LastIndexOf('/')) : "";
 
                         if (string.IsNullOrWhiteSpace(githubFileUrl))
@@ -421,9 +429,24 @@ namespace ExportPipelineDefinitions
                             logIndent = "        "; // 8 spaces
                         }
 
-                        string fileName = githubFileUrl.Substring(githubFileUrl.LastIndexOf('/') + 1);
-                        string outputFilePath = $"{directory}\\{fileName}";
-                        bool succeeded = DownloadFileFromGithub(githubFileUrl, outputFilePath, logIndent);
+                        // Check whether this file has the same name as another. If so, it wil need its own directory to avoid a file overwrite.
+                        string outputFilePath;
+                        string fileName;
+                        string duplicateFileName = yamlFileNameDuplicates.FirstOrDefault(x => filePath.EndsWith(x, StringComparison.OrdinalIgnoreCase));
+                        if (!string.IsNullOrWhiteSpace(duplicateFileName))
+                        {
+                            // It does. Create a folder for it.
+                            fileName = duplicateFileName.Replace('/', '\\');
+                            string newDir = $"{directory}\\{fileName.Substring(0, fileName.LastIndexOf('\\'))}";
+                            System.IO.Directory.CreateDirectory(newDir);
+                        }
+                        else
+                        {
+                            fileName = githubFileUrl.Substring(githubFileUrl.LastIndexOf('/') + 1);
+                        }
+                        outputFilePath = $"{directory}\\{fileName}";
+
+                        bool succeeded = DownloadFileFromGithub(githubFileUrl, outputFilePath, fileName, logIndent);
                         yamlFileNames.RemoveAt(0);
 
                         if (succeeded)
@@ -478,7 +501,7 @@ namespace ExportPipelineDefinitions
             return repoUrl;
         }
 
-        private static bool DownloadFileFromGithub(string githubFileUrl, string outputFilePath, string logIndent)
+        private static bool DownloadFileFromGithub(string githubFileUrl, string outputFilePath, string fileName, string logIndent)
         {
             // https://gist.github.com/EvanSnapp/ddf7f7f793474ea9631cbc0960295983
             // https://github.com/zayenCh/DownloadFile/blob/master/Downloader.cs
@@ -495,7 +518,6 @@ namespace ExportPipelineDefinitions
             {
                 string contents = webClient.DownloadString(new Uri(githubFileUrl));
                 File.WriteAllText(outputFilePath, contents);
-                string fileName = outputFilePath.Substring(outputFilePath.LastIndexOf("\\") + 1);
                 Console.WriteLine($"{logIndent}* {fileName}");
                 BuildCsvString(column, fileName);
 
@@ -503,9 +525,9 @@ namespace ExportPipelineDefinitions
             }
             catch (Exception ex)
             {
-                string fileName = outputFilePath.Substring(outputFilePath.LastIndexOf("\\") + 1);
                 Console.WriteLine($"{logIndent}* {fileName}**");
                 BuildCsvString(column, fileName + "**");
+                // We couldn't get the file contents, so write the error message to the file instead.
                 string contents = $"* {ex.Message.ToString()}\r\n{githubFileUrl}";
                 File.WriteAllText(outputFilePath, contents);
                 if (ex.Message.ToString().Contains("(404)"))
@@ -535,12 +557,13 @@ namespace ExportPipelineDefinitions
                     int index = name.IndexOf("#"); // Find and remove any other comment.
                     if (index >= 0) name = name.Remove(index).TrimEnd();
                     name = name.TrimStart('-').Replace(match, "").Trim(); // TrimStart() handles the case of "- template:".
-                    if (!String.IsNullOrWhiteSpace(name))
+                    if (!string.IsNullOrWhiteSpace(name))
                     {
                         // Normalize the relative path.
                         name = Path.GetFullPath((Path.Combine("/", currentOffsetFromRootUrl, name))).Replace(@"C:\", "").TrimStart('\\').Replace(@"\", "/");
                         if (!yamlFileNames.Contains(name))
                         {
+                            AddToYamlFileNameDuplicates(name);
                             yamlFileNames.Add(name);
                         }
                     }
@@ -548,6 +571,53 @@ namespace ExportPipelineDefinitions
             }
 
             return;
+        }
+
+        /// <summary>
+        /// This checks filePath to see whether the file name duplicates a file name already in 
+        /// yamlFileNames. If so, it adds the two files to yamlFileNameDuplicates. 
+        /// For files in yamlFileNameDuplicates we make an exception to folder flattening and 
+        /// create separate download folders to prevent one file overwriting the other.
+        /// </summary>
+        /// <param name="filePath"></param>
+        private static void AddToYamlFileNameDuplicates(string filePath)
+        {
+            if (yamlFileNames.Contains(filePath))
+            {
+                // This is a duplicate reference to the same file. We don't dedupe these. Skip it.
+                return;
+            }
+
+            string[] filePathArray = filePath.Split('/');
+            filePathArray = filePathArray.Reverse().ToArray();
+
+            foreach (string yamlFileName in yamlFileNames)
+            {
+                string[] yamlFileNameArray = yamlFileName.Split('/');
+                yamlFileNameArray = yamlFileNameArray.Reverse().ToArray();
+
+                for (int i = 0; i < filePathArray.Length && i < yamlFileNameArray.Length; i++)
+                {
+                    if (!filePathArray[i].Equals(yamlFileNameArray[i], StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (i == 0) break; // Names are not dupes.
+
+                        string outFilePath = "";
+                        string outyamlPath = "";
+                        int j = i;
+                        while (j >= 0)
+                        {
+                            outFilePath += filePathArray[j] + "/";
+                            outyamlPath += yamlFileNameArray[j] + "/";
+                            j--;
+                        }
+
+                        yamlFileNameDuplicates.Add(outFilePath.Trim('/'));
+                        yamlFileNameDuplicates.Add(outyamlPath.Trim('/'));
+                        return; // No more dupes that are not accounted for, so quit.
+                    }
+                }
+            }
         }
 
         private static int CompareProjects(Proj x, Proj y)
