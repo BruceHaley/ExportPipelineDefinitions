@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
 //using Json;
 using System;
 using System.IO;
@@ -44,7 +44,7 @@ namespace ExportPipelineDefinitions
         static bool isYamlPipeline = false;
         static List<string> yamlFileNames = new List<string>();
         // For holding duplicate template file names found in yamlFileNames. Allows avoiding file overwrites.
-        static HashSet<string> yamlFileNameDuplicates = new HashSet<string>(); 
+        static HashSet<string> yamlFileNameDuplicates = new HashSet<string>();
 
         public class BuildDef
         {
@@ -337,7 +337,7 @@ namespace ExportPipelineDefinitions
 
                         string filePathWithoutExtension = directory + "\\" + buildDef.name.Replace("?", "").Replace(":", "").Replace(@"\", "-").Replace("/", "-");
                         // Limit file path to 259 characters to avoid System.IO.PathTooLongException.
-                        int maxLength = Math.Min(filePathWithoutExtension.Length, 254); 
+                        int maxLength = Math.Min(filePathWithoutExtension.Length, 254);
                         string fullFilePath = filePathWithoutExtension.Substring(0, maxLength) + ".json";
 
                         System.IO.File.WriteAllText(fullFilePath, fileContent);
@@ -512,31 +512,56 @@ namespace ExportPipelineDefinitions
                 githubFileUrl += $"?access_token={githubPersonalAccessToken}";
             }
 
-            WebClient webClient = new WebClient();
-            webClient.Headers.Add("user-agent", "Anything");
-            try
+            using (var client = new HttpClient())
             {
-                string contents = webClient.DownloadString(new Uri(githubFileUrl));
-                File.WriteAllText(outputFilePath, contents);
-                Console.WriteLine($"{logIndent}* {fileName}");
-                BuildCsvString(column, fileName);
+                client.DefaultRequestHeaders.Add("user-agent", "Anything");
 
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{logIndent}* {fileName}**");
-                BuildCsvString(column, fileName + "**");
-                // We couldn't get the file contents, so write the error message to the file instead.
-                string contents = $"* {ex.Message.ToString()}\r\n{githubFileUrl}";
-                File.WriteAllText(outputFilePath, contents);
-                if (ex.Message.ToString().Contains("(404)"))
+                if (!githubFileUrl.Contains("githubusercontent"))
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                            Convert.ToBase64String(
+                                Encoding.ASCII.GetBytes(
+                                    string.Format("{0}:{1}", "", azurePersonalAccessToken))));
+
+                try
                 {
-                    //Console.WriteLine($"Not Found (404): {githubFileUrl}");
+                    var response = client.GetAsync(githubFileUrl).Result;
+
+                    //Write content to file regardless of success
+                    string contents = response.Content.ReadAsStringAsync().Result;
+                    File.WriteAllText(outputFilePath, contents);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine($"{logIndent}* {fileName}");
+                        BuildCsvString(column, fileName);
+
+                        return true;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"{logIndent}* {fileName}**");
+                        BuildCsvString(column, fileName + "**");
+
+                        Console.WriteLine($"* {response.StatusCode} ({(int)response.StatusCode}) {githubFileUrl}");
+
+                        return false;
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Console.WriteLine($"* {ex.Message.ToString()} {githubFileUrl}");
+                    Console.WriteLine($"{logIndent}* {fileName}**");
+                    BuildCsvString(column, fileName + "**");
+                    // We couldn't get the file contents, so write the error message to the file instead.
+                    string contents = $"* {ex.Message}\r\n{githubFileUrl}";
+                    File.WriteAllText(outputFilePath, contents);
+                    if (ex.Message.ToString().Contains("(404)"))
+                    {
+                        //Console.WriteLine($"Not Found (404): {githubFileUrl}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"* {ex.Message} {githubFileUrl}");
+                    }
                 }
             }
             return false;
